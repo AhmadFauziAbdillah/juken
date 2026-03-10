@@ -1,0 +1,22 @@
+{
+  "appId": "com.juken5plus.variomapper",
+  "appName": "Juken 5+ Mapper",
+  "webDir": "www",
+  "android": {
+    "minWebViewVersion": 60,
+    "backgroundColor": "#050810"
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "BluetoothLe": {
+      "displayStrings": {
+        "scanning": "Mencari ECU Juken 5+...",
+        "cancel": "Batal",
+        "availableDevices": "Perangkat ECU tersedia",
+        "noDeviceFound": "ECU tidak ditemukan"
+      }
+    }
+  }
+}

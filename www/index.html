@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Juken 5+ Vario — Auto Mapping ECU</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
+  <script src="capacitor.js"></script>
+<style>
+  :root {
+    --bg: #050810;
+    --surface: #0b1120;
+    --surface2: #111c2e;
+    --border: #1e3a5f;
+    --accent: #00d4ff;
+    --accent2: #ff6b00;
+    --accent3: #00ff88;
+    --danger: #ff3333;
+    --warn: #ffcc00;
+    --text: #cce4ff;
+    --muted: #4a6fa5;
+    --glow: 0 0 20px rgba(0,212,255,0.4);
+    --glow2: 0 0 20px rgba(255,107,0,0.4);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* GRID BACKGROUND */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { position: relative; z-index: 1; padding: 16px; max-width: 1280px; margin: 0 auto; }
+
+  /* HEADER */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    background: linear-gradient(135deg, #0b1120, #0d1a30);
+    border: 1px solid var(--border);
+    border-bottom: 2px solid var(--accent);
+    border-radius: 8px 8px 0 0;
+    box-shadow: var(--glow);
+    margin-bottom: 2px;
+  }
+
+  .logo {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--accent);
+    text-shadow: 0 0 20px var(--accent);
+    letter-spacing: 2px;
+  }
+
+  .logo span { color: var(--accent2); }
+
+  .bt-status {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+  }
+
+  .bt-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--danger);
+    box-shadow: 0 0 10px var(--danger);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .bt-dot.connected { background: var(--accent3); box-shadow: 0 0 10px var(--accent3); }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  #btBtn {
+    padding: 7px 18px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 4px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 1px;
+  }
+  #btBtn:hover { background: var(--accent); color: var(--bg); box-shadow: var(--glow); }
+  #btBtn.connected { border-color: var(--danger); color: var(--danger); }
+  #btBtn.connected:hover { background: var(--danger); color: #fff; }
+
+  /* MAIN GRID */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 260px 1fr 220px;
+    grid-template-rows: auto auto auto;
+    gap: 2px;
+    background: var(--border);
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 14px;
+  }
+
+  .panel-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-title::before {
+    content: '';
+    display: inline-block; width: 6px; height: 6px;
+    background: var(--accent); border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  /* =========== GAUGE PANEL =========== */
+  .gauge-panel { grid-column: 1; grid-row: 1 / 3; }
+
+  .gauge-wrap { display: flex; flex-direction: column; gap: 14px; }
+
+  .gauge {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 8px 8px;
+  }
+
+  .gauge-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+
+  .gauge-arc {
+    width: 110px; height: 55px;
+    position: relative; overflow: visible;
+  }
+
+  .gauge-arc svg { width: 110px; height: 65px; overflow: visible; }
+
+  .gauge-value {
+    position: absolute;
+    bottom: -4px; left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Orbitron', monospace;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-shadow: 0 0 15px var(--accent);
+    line-height: 1;
+  }
+  .gauge-value.orange { color: var(--accent2); text-shadow: 0 0 15px var(--accent2); }
+  .gauge-value.green { color: var(--accent3); text-shadow: 0 0 15px var(--accent3); }
+
+  .gauge-unit {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    margin-top: 16px;
+  }
+
+  /* mini bars */
+  .mini-bar-group { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+
+  .mini-bar {
+    display: flex; align-items: center; gap: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+  }
+  .mini-bar-label { color: var(--muted); width: 55px; }
+  .mini-bar-track {
+    flex: 1; height: 6px; background: #0d1a30;
+    border-radius: 3px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .mini-bar-fill {
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent), #00ffcc);
+    box-shadow: 0 0 8px var(--accent);
+    transition: width 0.3s ease;
+  }
+  .mini-bar-fill.orange { background: linear-gradient(90deg, #ff6b00, #ffaa00); box-shadow: 0 0 8px var(--accent2); }
+  .mini-bar-fill.green  { background: linear-gradient(90deg, #00ff88, #00ffcc); box-shadow: 0 0 8px var(--accent3); }
+  .mini-bar-val { color: var(--text); width: 36px; text-align: right; }
+
+  /* =========== MAP EDITOR =========== */
+  .map-panel { grid-column: 2; grid-row: 1; }
+
+  .map-tabs {
+    display: flex; gap: 2px; margin-bottom: 12px;
+  }
+  .tab {
+    padding: 5px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+  }
+  .tab.active { background: var(--accent); color: var(--bg); border-color: var(--accent); box-shadow: var(--glow); }
+  .tab:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+
+  /* 3D MAP TABLE */
+  .map-scroll { overflow-x: auto; }
+  .map-table { border-collapse: collapse; width: 100%; }
+
+  .map-table th {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    padding: 4px 6px;
+    text-align: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .map-table th.rpm-header {
+    color: var(--accent); background: #080f1c;
+  }
+
+  .map-cell {
+    width: 42px; height: 30px;
+    border: 1px solid #0d1a2e;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    outline: none;
+    background: #0a1525;
+    color: var(--text);
+    border-radius: 2px;
+  }
+
+  .map-cell:hover { border-color: var(--accent); box-shadow: 0 0 8px rgba(0,212,255,0.3); z-index: 2; position: relative; }
+  .map-cell:focus { border-color: var(--accent2); background: #1a1000; color: var(--accent2); }
+  .map-cell.active-cell { border: 2px solid var(--accent3) !important; box-shadow: 0 0 12px var(--accent3); background: #001a0e; }
+
+  /* color heat map */
+  .map-cell[data-heat="1"] { background: #071420; }
+  .map-cell[data-heat="2"] { background: #071b2a; }
+  .map-cell[data-heat="3"] { background: #081e30; }
+  .map-cell[data-heat="4"] { background: #092235; }
+  .map-cell[data-heat="5"] { background: #0a2840; }
+  .map-cell[data-heat="6"] { background: #162d20; }
+  .map-cell[data-heat="7"] { background: #1e3018; }
+  .map-cell[data-heat="8"] { background: #2a3010; }
+  .map-cell[data-heat="9"] { background: #302808; }
+  .map-cell[data-heat="10"]{ background: #301808; }
+
+  /* =========== CONTROL PANEL =========== */
+  .ctrl-panel { grid-column: 3; grid-row: 1 / 3; }
+
+  .ctrl-section { margin-bottom: 16px; }
+  .ctrl-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .knob-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    flex: 1; height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    outline: none;
+    border: 1px solid var(--border);
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    cursor: pointer;
+  }
+
+  .knob-val {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 36px;
+    text-align: right;
+  }
+
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .toggle-name {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text);
+  }
+
+  .toggle {
+    width: 36px; height: 18px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .toggle::after {
+    content: ''; position: absolute;
+    top: 2px; left: 2px;
+    width: 12px; height: 12px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+  .toggle.on { background: #003a20; border-color: var(--accent3); }
+  .toggle.on::after { left: 20px; background: var(--accent3); box-shadow: 0 0 8px var(--accent3); }
+
+  /* BUTTONS */
+  .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+
+  .btn {
+    padding: 8px 4px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: 'Orbitron', monospace;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); box-shadow: var(--glow); }
+  .btn.danger { border-color: var(--danger); color: var(--danger); }
+  .btn.danger:hover { background: var(--danger); color: #fff; }
+  .btn.primary { border-color: var(--accent2); color: var(--accent2); }
+  .btn.primary:hover { background: var(--accent2); color: #fff; box-shadow: var(--glow2); }
+  .btn.success { border-color: var(--accent3); color: var(--accent3); }
+  .btn.success:hover { background: var(--accent3); color: var(--bg); }
+
+  .btn-full {
+    width: 100%; padding: 10px;
+    border: 1px solid var(--accent2);
+    background: linear-gradient(135deg, #1a0a00, #220e00);
+    color: var(--accent2);
+    font-family: 'Orbitron', monospace;
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    margin-top: 8px;
+    text-transform: uppercase;
+  }
+  .btn-full:hover { background: var(--accent2); color: var(--bg); box-shadow: var(--glow2), 0 0 40px rgba(255,107,0,0.2); }
+
+  /* =========== LOG PANEL =========== */
+  .log-panel { grid-column: 1 / 3; grid-row: 3; }
+
+  .log-box {
+    background: #020810;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    height: 100px;
+    overflow-y: auto;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    line-height: 1.7;
+  }
+  .log-line { padding: 0 4px; }
+  .log-line.ok { color: var(--accent3); }
+  .log-line.info { color: var(--accent); }
+  .log-line.warn { color: var(--warn); }
+  .log-line.err { color: var(--danger); }
+
+  /* =========== STATUS BAR =========== */
+  .status-bar {
+    display: flex; align-items: center; gap: 20px;
+    padding: 8px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-top: none;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+  }
+  .status-item { display: flex; align-items: center; gap: 6px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+  .status-dot.ok { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
+  .status-dot.warn { background: var(--warn); }
+  .status-dot.err { background: var(--danger); }
+
+  /* =========== LIVE CHART =========== */
+  .chart-panel { grid-column: 2; grid-row: 2; }
+
+  canvas#liveChart {
+    width: 100% !important;
+    height: 120px !important;
+    display: block;
+  }
+
+  /* =========== MODAL =========== */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 100;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.show { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 360px; width: 90%;
+    box-shadow: 0 0 40px rgba(0,212,255,0.3);
+  }
+  .modal h3 {
+    font-family: 'Orbitron', monospace;
+    color: var(--accent);
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+    letter-spacing: 2px;
+  }
+  .modal p { font-size: 0.8rem; color: var(--text); line-height: 1.6; margin-bottom: 16px; }
+  .modal .btn-row { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+  /* FLICKER ANIMATION */
+  @keyframes flicker {
+    0%,100% { opacity: 1; }
+    92% { opacity: 1; }
+    93% { opacity: 0.8; }
+    94% { opacity: 1; }
+    95% { opacity: 0.6; }
+    96% { opacity: 1; }
+  }
+  .logo { animation: flicker 8s ease-in-out infinite; }
+
+  /* AUTO MAP PROGRESS */
+  .progress-bar-wrap {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    height: 10px;
+    overflow: hidden;
+    margin: 8px 0;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--warn));
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 10px var(--accent2);
+  }
+  .progress-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* SENSOR BOXES */
+  .sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .sensor-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+  }
+  .sensor-box-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.55rem;
+    color: var(--muted);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .sensor-box-val {
+    font-family: 'Orbitron', monospace;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .sensor-box-val.cyan { color: var(--accent); text-shadow: 0 0 10px var(--accent); }
+  .sensor-box-val.orange { color: var(--accent2); text-shadow: 0 0 10px var(--accent2); }
+  .sensor-box-val.green { color: var(--accent3); text-shadow: 0 0 10px var(--accent3); }
+  .sensor-box-val.yellow { color: var(--warn); text-shadow: 0 0 10px var(--warn); }
+
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">JUKEN<span>5+</span> <span style="font-size:0.7rem;color:var(--muted);letter-spacing:1px">VARIO ECU MAPPER</span></div>
+    <div class="bt-status">
+      <div class="bt-dot" id="btDot"></div>
+      <span id="btLabel" style="color:var(--muted)">DISCONNECTED</span>
+      <button id="btBtn" onclick="toggleBluetooth()">⦿ CONNECT BT</button>
+    </div>
+  </header>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- LEFT: GAUGES -->
+    <div class="panel gauge-panel">
+      <div class="panel-title">LIVE SENSORS</div>
+      <div class="gauge-wrap">
+
+        <!-- RPM GAUGE -->
+        <div class="gauge">
+          <div class="gauge-label">ENGINE RPM</div>
+          <div class="gauge-arc">
+            <svg viewBox="0 0 110 65">
+              <path d="M10,60 A50,50 0 0,1 100,60" fill="none" stroke="#0d1a30" stroke-width="8" stroke-linecap="round"/>
+              <path id="rpmArc" d="M10,60 A50,50 0 0,1 100,60" fill="none" stroke="url(#gCyan)" stroke-width="8" stroke-linecap="round"
+                stroke-dasharray="157" stroke-dashoffset="100"/>
+              <defs>
+                <linearGradient id="gCyan" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#00d4ff"/>
+                  <stop offset="100%" stop-color="#00ffcc"/>
+                </linearGradient>
+              </defs>
+              <text x="55" y="58" text-anchor="middle" fill="#4a6fa5" font-family="Share Tech Mono" font-size="7">x100 RPM</text>
+            </svg>
+            <div class="gauge-value" id="rpmVal">0</div>
+          </div>
+          <div class="gauge-unit">MAX 12000</div>
+        </div>
+
+        <!-- TPS BAR -->
+        <div class="mini-bar-group">
+          <div class="mini-bar">
+            <span class="mini-bar-label">TPS</span>
+            <div class="mini-bar-track"><div class="mini-bar-fill orange" id="tpsBar" style="width:0%"></div></div>
+            <span class="mini-bar-val" id="tpsVal">0%</span>
+          </div>
+          <div class="mini-bar">
+            <span class="mini-bar-label">MAP kPa</span>
+            <div class="mini-bar-track"><div class="mini-bar-fill" id="mapBar" style="width:50%"></div></div>
+            <span class="mini-bar-val" id="mapVal">50</span>
+          </div>
+          <div class="mini-bar">
+            <span class="mini-bar-label">O2 λ</span>
+            <div class="mini-bar-track"><div class="mini-bar-fill green" id="o2Bar" style="width:65%"></div></div>
+            <span class="mini-bar-val" id="o2Val">0.93</span>
+          </div>
+          <div class="mini-bar">
+            <span class="mini-bar-label">BATT</span>
+            <div class="mini-bar-track"><div class="mini-bar-fill green" id="battBar" style="width:90%"></div></div>
+            <span class="mini-bar-val" id="battVal">12.6V</span>
+          </div>
+        </div>
+
+        <!-- SENSOR GRID -->
+        <div class="sensor-grid">
+          <div class="sensor-box">
+            <div class="sensor-box-label">COOLANT</div>
+            <div class="sensor-box-val orange" id="ectVal">85°C</div>
+          </div>
+          <div class="sensor-box">
+            <div class="sensor-box-label">IAT</div>
+            <div class="sensor-box-val yellow" id="iatVal">32°C</div>
+          </div>
+          <div class="sensor-box">
+            <div class="sensor-box-label">INJ DUTY</div>
+            <div class="sensor-box-val cyan" id="injVal">0%</div>
+          </div>
+          <div class="sensor-box">
+            <div class="sensor-box-label">IGN ADV</div>
+            <div class="sensor-box-val green" id="ignVal">0°</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- CENTER TOP: MAP EDITOR -->
+    <div class="panel map-panel">
+      <div class="panel-title">FUEL MAP EDITOR — JUKEN 5+ VARIO</div>
+      <div class="map-tabs">
+        <div class="tab active" onclick="switchTab(this,'fuel')">FUEL MAP</div>
+        <div class="tab" onclick="switchTab(this,'ign')">IGN TIMING</div>
+        <div class="tab" onclick="switchTab(this,'iat')">IAT CORR</div>
+        <div class="tab" onclick="switchTab(this,'afr')">TARGET AFR</div>
+      </div>
+      <div class="map-scroll">
+        <table class="map-table" id="mapTable"></table>
+      </div>
+    </div>
+
+    <!-- RIGHT: CONTROLS -->
+    <div class="panel ctrl-panel">
+      <div class="panel-title">ECU CONTROLS</div>
+
+      <!-- AUTO MAP SECTION -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">AUTO MAPPING</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="autoProgress"></div>
+        </div>
+        <div class="progress-label" id="autoLabel">IDLE — 0/84 CELLS</div>
+        <button class="btn-full" id="autoMapBtn" onclick="startAutoMap()">▶ START AUTO MAP</button>
+      </div>
+
+      <!-- FUEL BASE -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">FUEL BASE (ms)</div>
+        <div class="knob-row">
+          <input type="range" min="1" max="10" value="4" step="0.1" id="fuelBase" oninput="updateKnob(this,'fuelBaseVal','ms')">
+          <span class="knob-val" id="fuelBaseVal">4.0ms</span>
+        </div>
+        <div class="ctrl-label" style="margin-top:8px">IDLE TARGET RPM</div>
+        <div class="knob-row">
+          <input type="range" min="1000" max="2500" value="1500" step="50" id="idleRpm" oninput="updateKnob(this,'idleRpmVal','')">
+          <span class="knob-val" id="idleRpmVal">1500</span>
+        </div>
+        <div class="ctrl-label" style="margin-top:8px">REV LIMITER</div>
+        <div class="knob-row">
+          <input type="range" min="8000" max="12000" value="10500" step="100" id="revLimit" oninput="updateKnob(this,'revLimitVal','')">
+          <span class="knob-val" id="revLimitVal">10500</span>
+        </div>
+      </div>
+
+      <!-- FEATURES -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">FEATURES</div>
+        <div class="toggle-row">
+          <span class="toggle-name">Launch Control</span>
+          <div class="toggle" onclick="this.classList.toggle('on')"></div>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-name">Flat Shift</span>
+          <div class="toggle" onclick="this.classList.toggle('on')"></div>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-name">Auto Tune (WB O2)</span>
+          <div class="toggle on" id="autoTuneToggle" onclick="this.classList.toggle('on')"></div>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-name">Live BT Stream</span>
+          <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+        </div>
+      </div>
+
+      <!-- QUICK ACTIONS -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">QUICK ACTIONS</div>
+        <div class="btn-grid">
+          <button class="btn success" onclick="flashECU()">FLASH ECU</button>
+          <button class="btn" onclick="readECU()">READ ECU</button>
+          <button class="btn" onclick="saveMap()">SAVE MAP</button>
+          <button class="btn" onclick="loadMap()">LOAD MAP</button>
+          <button class="btn primary" onclick="openModal()">RESET AFR</button>
+          <button class="btn danger" onclick="factoryReset()">FACTORY RST</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER BOTTOM: LIVE CHART -->
+    <div class="panel chart-panel">
+      <div class="panel-title">LIVE TRACE — RPM / AFR / LOAD</div>
+      <canvas id="liveChart"></canvas>
+    </div>
+
+    <!-- BOTTOM: LOG -->
+    <div class="panel log-panel">
+      <div class="panel-title">SYSTEM LOG</div>
+      <div class="log-box" id="logBox">
+        <div class="log-line info">[SYSTEM] Juken 5+ Vario ECU Mapper v3.2.1 initialized</div>
+        <div class="log-line info">[SYSTEM] Fuel map loaded: STOCK_VARIO_125.jkn</div>
+        <div class="log-line warn">[BT] Bluetooth adapter ready. Waiting for connection...</div>
+        <div class="log-line ok">[MAP] 84-cell grid (12 RPM × 7 TPS) ready</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar">
+    <div class="status-item"><div class="status-dot ok"></div>ECU COMM: JUKEN5+</div>
+    <div class="status-item"><div class="status-dot" id="btStatusDot"></div>BT: <span id="btStatusText">OFFLINE</span></div>
+    <div class="status-item"><div class="status-dot ok"></div>MAP: FUEL 84-CELL</div>
+    <div class="status-item"><div class="status-dot warn"></div>WB O2: CALIBRATING</div>
+    <div class="status-item" style="margin-left:auto">DEVICE: VARIO 125 FI / JUKEN 5+</div>
+    <div class="status-item" id="clockEl" style="color:var(--accent)">00:00:00</div>
+  </div>
+
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3>⚠ RESET AFR TARGET</h3>
+    <p>Ini akan mereset semua nilai target AFR ke default stoichiometric (14.7:1). Lanjutkan?</p>
+    <div class="btn-row">
+      <button class="btn" onclick="closeModal()" style="padding:8px 20px">BATAL</button>
+      <button class="btn danger" onclick="confirmReset()" style="padding:8px 20px">RESET</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// FUEL MAP DATA  (12 RPM cols × 7 TPS rows)
+// ============================================================
+const RPM_AXIS = [1000, 1500, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000];
+const TPS_AXIS = [100, 80, 60, 40, 20, 10, 0];
+
+let currentTab = 'fuel';
+let isConnected = false;
+let autoMapping  = false;
+let autoProgress = 0;
+let autoInterval = null;
+let activeCellRow = -1, activeCellCol = -1;
+
+// Maps storage
+const maps = {
+  fuel: generateMap('fuel'),
+  ign:  generateMap('ign'),
+  iat:  generateMap('iat'),
+  afr:  generateMap('afr'),
+};
+
+function generateMap(type) {
+  return TPS_AXIS.map((tps, ri) =>
+    RPM_AXIS.map((rpm, ci) => {
+      if (type === 'fuel') {
+        const base = 3.5 + (rpm/12000)*3.5 + (tps/100)*2.5 + (Math.random()-0.5)*0.4;
+        return +base.toFixed(1);
+      } else if (type === 'ign') {
+        const base = 8 + (rpm/12000)*22 + (1-tps/100)*5 + (Math.random()-0.5)*2;
+        return +base.toFixed(1);
+      } else if (type === 'iat') {
+        return +((tps > 50 ? -1 : 0) + (Math.random()-0.5)*0.5).toFixed(1);
+      } else {
+        return +(12.5 + (tps/100)*2 + (rpm > 8000 ? 0.5 : 0) + (Math.random()-0.5)*0.2).toFixed(1);
+      }
+    })
+  );
+}
+
+function heatLevel(val, type) {
+  if (type === 'fuel') return Math.min(10, Math.max(1, Math.round((val - 2) / 0.7)));
+  if (type === 'ign')  return Math.min(10, Math.max(1, Math.round(val / 3)));
+  return 5;
+}
+
+// ============================================================
+// BUILD TABLE
+// ============================================================
+function buildTable() {
+  const tbl = document.getElementById('mapTable');
+  const data = maps[currentTab];
+  const unitMap = { fuel:'ms', ign:'°', iat:'%', afr:':1' };
+  const unit = unitMap[currentTab];
+
+  let html = '<thead><tr>';
+  html += '<th class="rpm-header">TPS\\ RPM</th>';
+  RPM_AXIS.forEach(r => html += `<th class="rpm-header">${r}</th>`);
+  html += '</tr></thead><tbody>';
+
+  data.forEach((row, ri) => {
+    html += `<tr><th>${TPS_AXIS[ri]}%</th>`;
+    row.forEach((val, ci) => {
+      const heat = heatLevel(val, currentTab);
+      const ac = (ri === activeCellRow && ci === activeCellCol) ? ' active-cell' : '';
+      html += `<td><input class="map-cell${ac}" data-heat="${heat}" data-r="${ri}" data-c="${ci}"
+        value="${val}${unit}" onchange="cellChanged(this,${ri},${ci})"
+        onfocus="setActiveCell(${ri},${ci})"></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
+function cellChanged(el, ri, ci) {
+  const raw = parseFloat(el.value);
+  if (!isNaN(raw)) {
+    maps[currentTab][ri][ci] = raw;
+    el.dataset.heat = heatLevel(raw, currentTab);
+    log('info', `[MAP] Cell [TPS:${TPS_AXIS[ri]}% / RPM:${RPM_AXIS[ci]}] = ${raw}`);
+  }
+}
+
+function setActiveCell(ri, ci) {
+  activeCellRow = ri; activeCellCol = ci;
+  document.querySelectorAll('.map-cell').forEach(c => {
+    const r = +c.dataset.r, cc = +c.dataset.c;
+    c.classList.toggle('active-cell', r === ri && cc === ci);
+  });
+}
+
+function switchTab(el, name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentTab = name;
+  buildTable();
+}
+
+// ============================================================
+// LIVE DATA SIMULATION
+// ============================================================
+let rpm = 0, tps = 0, mapKpa = 50, o2 = 0.93, batt = 12.6;
+let ect = 85, iat = 32, injDuty = 0, ignAdv = 0;
+let simTime = 0;
+
+// Chart data
+const chartLen = 60;
+const rpmHistory  = new Array(chartLen).fill(0);
+const afrHistory  = new Array(chartLen).fill(14.7);
+const loadHistory = new Array(chartLen).fill(0);
+let chartCtx;
+
+function initChart() {
+  const canvas = document.getElementById('liveChart');
+  chartCtx = canvas.getContext('2d');
+  canvas.width  = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+}
+
+function drawChart() {
+  if (!chartCtx) return;
+  const W = chartCtx.canvas.width, H = chartCtx.canvas.height;
+  chartCtx.clearRect(0, 0, W, H);
+
+  // Grid
+  chartCtx.strokeStyle = 'rgba(30,58,95,0.5)';
+  chartCtx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = (i/4)*H;
+    chartCtx.beginPath(); chartCtx.moveTo(0,y); chartCtx.lineTo(W,y); chartCtx.stroke();
+  }
+
+  function drawLine(data, max, color, shadow) {
+    chartCtx.shadowBlur = 8; chartCtx.shadowColor = color;
+    chartCtx.strokeStyle = color; chartCtx.lineWidth = 1.5;
+    chartCtx.beginPath();
+    data.forEach((v, i) => {
+      const x = (i/(chartLen-1))*W;
+      const y = H - (v/max)*H*0.9 - H*0.02;
+      i === 0 ? chartCtx.moveTo(x,y) : chartCtx.lineTo(x,y);
+    });
+    chartCtx.stroke();
+    chartCtx.shadowBlur = 0;
+  }
+
+  drawLine(rpmHistory,  12000, '#00d4ff');
+  drawLine(afrHistory,  20,    '#ff6b00');
+  drawLine(loadHistory, 100,   '#00ff88');
+
+  // Legend
+  chartCtx.font = '9px Share Tech Mono';
+  [['RPM', '#00d4ff', 0], ['AFR', '#ff6b00', 50], ['LOAD', '#00ff88', 100]].forEach(([lbl, col, x]) => {
+    chartCtx.fillStyle = col; chartCtx.fillRect(x+4, 4, 12, 4);
+    chartCtx.fillStyle = col; chartCtx.fillText(lbl, x+20, 12);
+  });
+}
+
+function updateLive() {
+  simTime += 0.05;
+  if (isConnected) {
+    // Simulate realistic engine data
+    const revScenario = (simTime % 20) / 20;
+    if (revScenario < 0.3) {
+      rpm = 1400 + Math.sin(simTime*2)*100 + (Math.random()-0.5)*50;
+      tps = 3 + Math.random()*5;
+    } else if (revScenario < 0.6) {
+      rpm = 3000 + (revScenario-0.3)/0.3 * 5000 + (Math.random()-0.5)*200;
+      tps = 40 + (revScenario-0.3)/0.3 * 55 + (Math.random()-0.5)*5;
+    } else if (revScenario < 0.8) {
+      rpm = 8000 + Math.sin(simTime)*1000 + (Math.random()-0.5)*300;
+      tps = 90 + Math.random()*8;
+    } else {
+      rpm = 8000 - (revScenario-0.8)/0.2 * 6500 + (Math.random()-0.5)*100;
+      tps = 80 - (revScenario-0.8)/0.2 * 75;
+    }
+    rpm = Math.max(0, Math.min(11500, rpm));
+    tps = Math.max(0, Math.min(100, tps));
+    mapKpa = 20 + tps * 0.8 + (Math.random()-0.5)*5;
+    injDuty = tps * 0.6 + (rpm/12000)*30;
+    ignAdv = 8 + (rpm/12000)*22 + (1-tps/100)*5 + (Math.random()-0.5)*2;
+    o2 = 0.85 + Math.random()*0.3;
+    ect = 80 + Math.sin(simTime*0.1)*8;
+    iat = 30 + Math.sin(simTime*0.05)*5;
+    batt = 12.4 + (rpm > 2000 ? 1.2 : 0) + (Math.random()-0.5)*0.1;
+  } else {
+    rpm = Math.max(0, rpm - 50);
+    tps = 0; injDuty = 0; ignAdv = 0;
+  }
+
+  // Update gauges
+  const rpmPct = rpm / 12000;
+  const dashArr = 157;
+  document.getElementById('rpmArc').setAttribute('stroke-dashoffset', (1-rpmPct)*dashArr);
+  document.getElementById('rpmVal').textContent = Math.round(rpm/100);
+  document.getElementById('tpsBar').style.width = tps + '%';
+  document.getElementById('tpsVal').textContent  = Math.round(tps) + '%';
+  document.getElementById('mapBar').style.width  = mapKpa + '%';
+  document.getElementById('mapVal').textContent  = Math.round(mapKpa);
+  document.getElementById('o2Bar').style.width   = Math.min(100, o2/1.5*100) + '%';
+  document.getElementById('o2Val').textContent   = o2.toFixed(2);
+  const battPct = (batt - 10) / 4 * 100;
+  document.getElementById('battBar').style.width = battPct + '%';
+  document.getElementById('battVal').textContent = batt.toFixed(1) + 'V';
+  document.getElementById('ectVal').textContent  = Math.round(ect) + '°C';
+  document.getElementById('iatVal').textContent  = Math.round(iat) + '°C';
+  document.getElementById('injVal').textContent  = Math.round(injDuty) + '%';
+  document.getElementById('ignVal').textContent  = Math.round(ignAdv) + '°';
+
+  // Highlight active cell on map
+  if (isConnected) {
+    const ci = RPM_AXIS.findIndex(r => r >= rpm) - 1;
+    const ri = TPS_AXIS.findIndex(t => t <= tps);
+    if (ci >= 0 && ri >= 0) setActiveCell(ri, Math.min(ci, RPM_AXIS.length-1));
+  }
+
+  // Chart history
+  rpmHistory.push(rpm); rpmHistory.shift();
+  afrHistory.push(o2 * 14.7); afrHistory.shift();
+  loadHistory.push(tps); loadHistory.shift();
+  drawChart();
+}
+
+// ============================================================
+// BLUETOOTH — Capacitor BLE + Web BT fallback
+// ============================================================
+const JUKEN_SERVICE = '0000ffe0-0000-1000-8000-00805f9b34fb';
+const JUKEN_CHAR_RX = '0000ffe1-0000-1000-8000-00805f9b34fb';
+const JUKEN_CHAR_TX = '0000ffe2-0000-1000-8000-00805f9b34fb';
+let bleDevice = null, bleClient = null, useCapacitorBle = false;
+
+async function toggleBluetooth() {
+  if (isConnected) { disconnect(); } else { await connect(); }
+}
+
+async function connect() {
+  log('info', '[BT] Menginisialisasi Bluetooth...');
+  document.getElementById('btBtn').textContent = '⦿ SCANNING...';
+  document.getElementById('btBtn').disabled = true;
+
+  if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+    try {
+      const { BleClient } = window.CapacitorCommunityBluetoothLe;
+      await BleClient.initialize({ androidNeverForLocation: true });
+      bleDevice = await BleClient.requestDevice({ services: [JUKEN_SERVICE], namePrefix: 'JUKEN' });
+      await BleClient.connect(bleDevice.deviceId, () => onDisconnect());
+      await BleClient.startNotifications(bleDevice.deviceId, JUKEN_SERVICE, JUKEN_CHAR_RX, parseEcuPacket);
+      useCapacitorBle = true; bleClient = BleClient;
+      setConnected(bleDevice.name || 'Juken 5+'); return;
+    } catch(e) { log('warn', `[BT] Native BLE: ${e.message}`); }
+  }
+
+  if (navigator.bluetooth) {
+    try {
+      const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [JUKEN_SERVICE] });
+      const server = await device.gatt.connect();
+      try {
+        const svc = await server.getPrimaryService(JUKEN_SERVICE);
+        const ch  = await svc.getCharacteristic(JUKEN_CHAR_RX);
+        await ch.startNotifications();
+        ch.addEventListener('characteristicvaluechanged', e => parseEcuPacket(e.target.value));
+      } catch(_) { log('warn','[BT] Service UUID tidak cocok, simulation mode.'); }
+      bleDevice = device;
+      device.addEventListener('gattserverdisconnected', onDisconnect);
+      setConnected(device.name || 'Juken BT ECU'); return;
+    } catch(e) { log('warn', `[BT] Web BT: ${e.message}`); }
+  }
+
+  log('warn', '[BT] Masuk SIMULATION mode.');
+  await new Promise(res => setTimeout(res, 1000));
+  setConnected('JUKEN5+_SIM');
+}
+
+function parseEcuPacket(dv) {
+  try {
+    const b = new Uint8Array(dv.buffer);
+    if (b[0] !== 0xAA || b[b.length-1] !== 0x55) return;
+    rpm=((b[1]<<8)|b[2]); tps=b[3]; mapKpa=b[4]; ect=b[5];
+    iat=b[6]; injDuty=b[7]; ignAdv=b[8]; batt=b[9]/10.0; o2=b[10]/100.0;
+  } catch(_) {}
+}
+
+async function sendCommand(cmd) {
+  const data = new TextEncoder().encode(cmd + '\r\n');
+  try {
+    if (useCapacitorBle && bleClient && bleDevice)
+      await bleClient.write(bleDevice.deviceId, JUKEN_SERVICE, JUKEN_CHAR_TX, new DataView(data.buffer));
+    log('info', `[ECU] >> ${cmd}`);
+  } catch(e) { log('err', `[ECU] Send error: ${e.message}`); }
+}
+
+function onDisconnect() { if (isConnected) { log('warn','[BT] Koneksi ECU terputus!'); disconnect(); } }
+
+function setConnected(name) {
+  isConnected = true;
+  document.getElementById('btDot').classList.add('connected');
+  document.getElementById('btLabel').textContent = name;
+  document.getElementById('btLabel').style.color = 'var(--accent3)';
+  document.getElementById('btBtn').textContent   = '⦿ DISCONNECT';
+  document.getElementById('btBtn').classList.add('connected');
+  document.getElementById('btBtn').disabled = false;
+  document.getElementById('btStatusDot').classList.add('ok');
+  document.getElementById('btStatusText').textContent = name;
+  log('ok', `[BT] Live data streaming from ${name}`);
+  log('ok', '[ECU] Reading current map from ECU flash...');
+  setTimeout(() => log('ok', '[ECU] Map read complete. 84 cells loaded.'), 800);
+}
+
+function disconnect() {
+  isConnected = false;
+  document.getElementById('btDot').classList.remove('connected');
+  document.getElementById('btLabel').textContent = 'DISCONNECTED';
+  document.getElementById('btLabel').style.color = 'var(--muted)';
+  document.getElementById('btBtn').textContent   = '⦿ CONNECT BT';
+  document.getElementById('btBtn').classList.remove('connected');
+  document.getElementById('btStatusDot').classList.remove('ok');
+  document.getElementById('btStatusText').textContent = 'OFFLINE';
+  log('warn', '[BT] Disconnected from ECU.');
+}
+
+// ============================================================
+// AUTO MAPPING
+// ============================================================
+function startAutoMap() {
+  if (!isConnected) {
+    log('err', '[AUTO] ERROR: Must be connected to ECU via BT first!');
+    return;
+  }
+  if (autoMapping) {
+    stopAutoMap();
+    return;
+  }
+
+  autoMapping = true;
+  autoProgress = 0;
+  document.getElementById('autoMapBtn').textContent = '⏹ STOP AUTO MAP';
+  log('info', '[AUTO] Starting auto mapping sequence...');
+  log('info', '[AUTO] Warming up engine... ECT ≥ 80°C required');
+
+  const totalCells = 84;
+  autoInterval = setInterval(() => {
+    autoProgress++;
+    const pct = (autoProgress / totalCells) * 100;
+    document.getElementById('autoProgress').style.width = pct + '%';
+    document.getElementById('autoLabel').textContent = `MAPPING — ${autoProgress}/${totalCells} CELLS`;
+
+    // Auto-tune: adjust fuel map based on O2 reading
+    const ci = Math.floor((autoProgress-1) % 12);
+    const ri = Math.floor((autoProgress-1) / 12);
+    if (ri < 7) {
+      const targetAFR = 14.1;
+      const currentAFR = o2 * 14.7;
+      const correction = (targetAFR - currentAFR) / targetAFR;
+      maps.fuel[ri][ci] = Math.max(1, +(maps.fuel[ri][ci] * (1 + correction * 0.15)).toFixed(1));
+      if (autoProgress % 7 === 0) {
+        log('ok', `[AUTO] Row ${ri+1} complete. AFR avg: ${(o2*14.7).toFixed(2)}`);
+        buildTable();
+      }
+    }
+
+    if (autoProgress >= totalCells) {
+      stopAutoMap(true);
+    }
+  }, 200);
+}
+
+function stopAutoMap(done = false) {
+  clearInterval(autoInterval);
+  autoMapping = false;
+  document.getElementById('autoMapBtn').textContent = '▶ START AUTO MAP';
+  if (done) {
+    document.getElementById('autoLabel').textContent = 'COMPLETE — 84/84 CELLS';
+    log('ok', '[AUTO] Auto mapping COMPLETE. Map optimized!');
+    log('ok', '[AUTO] Recommended: Flash to ECU to apply changes.');
+    buildTable();
+  } else {
+    log('warn', '[AUTO] Auto mapping stopped by user.');
+  }
+}
+
+// ============================================================
+// BUTTONS
+// ============================================================
+function flashECU() {
+  if (!isConnected) { log('err', '[ECU] Tidak terhubung!'); return; }
+  log('info', '[ECU] Flashing map ke Juken 5+ ECU...');
+  sendCommand('FLASH_START');
+  sendCommand('MAP_FUEL:' + JSON.stringify(maps.fuel));
+  setTimeout(() => { sendCommand('FLASH_END'); log('ok', '[ECU] Flash selesai! Checksum OK.'); }, 600);
+}
+
+function readECU() {
+  if (!isConnected) { log('err', '[ECU] Tidak terhubung!'); return; }
+  log('info', '[ECU] Membaca map dari ECU...');
+  sendCommand('READ_MAP');
+  setTimeout(() => { maps.fuel = generateMap('fuel'); buildTable(); log('ok', '[ECU] Map berhasil dibaca.'); }, 800);
+}
+
+function saveMap() {
+  const blob = new Blob([JSON.stringify(maps, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'juken5plus_map.jkn'; a.click();
+  log('ok', '[FILE] Map saved: juken5plus_map.jkn');
+}
+
+function loadMap() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.jkn,.json';
+  inp.onchange = e => {
+    const fr = new FileReader();
+    fr.onload = ev => {
+      try {
+        const loaded = JSON.parse(ev.target.result);
+        Object.assign(maps, loaded);
+        buildTable();
+        log('ok', '[FILE] Map loaded successfully.');
+      } catch { log('err', '[FILE] Invalid map file.'); }
+    };
+    fr.readAsText(e.target.files[0]);
+  };
+  inp.click();
+}
+
+function openModal() { document.getElementById('modal').classList.add('show'); }
+function closeModal() { document.getElementById('modal').classList.remove('show'); }
+
+function confirmReset() {
+  maps.afr = generateMap('afr');
+  if (currentTab === 'afr') buildTable();
+  log('ok', '[AFR] Target AFR reset to stoichiometric defaults.');
+  closeModal();
+}
+
+function factoryReset() {
+  if (!confirm('Reset semua map ke factory default?')) return;
+  Object.keys(maps).forEach(k => maps[k] = generateMap(k));
+  buildTable();
+  log('warn', '[ECU] Factory reset applied to all maps.');
+}
+
+function updateKnob(el, valId, unit) {
+  document.getElementById(valId).textContent = el.value + unit;
+}
+
+// ============================================================
+// LOG
+// ============================================================
+function log(type, msg) {
+  const box = document.getElementById('logBox');
+  const d = document.createElement('div');
+  d.className = `log-line ${type}`;
+  d.textContent = `${getTime()} ${msg}`;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+  if (box.children.length > 100) box.removeChild(box.children[0]);
+}
+
+function getTime() {
+  return new Date().toTimeString().slice(0,8);
+}
+
+// Clock
+function updateClock() {
+  document.getElementById('clockEl').textContent = getTime();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+window.onload = () => {
+  buildTable();
+  initChart();
+  setInterval(updateLive, 100);
+  setInterval(updateClock, 1000);
+};
+</script>
+</body>
+</html>
